@@ -1,58 +1,62 @@
+# Running Disjointness Inference on DBPedia
+This guide details the steps to set up and run our scripts for inferring disjointness axioms in the DBPedia ontology, based on the methodology described in our paper.
 
-# Running on DBPedia
+## Introduction
+Ontologies often lack explicit disjointness declarations between classes, despite their usefulness for sophisticated reasoning and consistency-checking in Knowledge Graphs. In our study, we explore the potential of Large Language Models (LLMs) to enrich ontologies by identifying and asserting class disjointness axioms. Our approach leverages LLMs through prompt engineering to classify ontological disjointness, validated on the DBpedia ontology.
 
-In order to run the script on DBPedia, you need a local version of DBPedia, for faster querying.
+## Prerequisites
+To efficiently run the scripts, a local version of DBPedia is required for faster querying.
 
-This can be done by downloading the DBPedia ABox from https://databus.dbpedia.org/dbpedia/mappings/instance-types/. Generally, the `en,specific` version is the most suited one.
-Note that the ABox downloaded only contains information on the `rdf:type` assertions. To compute the transitive closure according to the ontology (i.e. also assert types from subclasses) an external reasoner needs to be used. This step is not strictly required but querying the local triple store will be significantly faster without including a reasoner in each query.
+## Setup Instructions
 
-One possible way is to use Jena RIOT to compute the closure, using
+### Step 1: Download DBPedia ABox
 
+  1. Download the DBPedia ABox from [DBPedia Databus](https://databus.dbpedia.org/dbpedia/mappings/instance-types/). The `en,specific` version is recommended.
+  2. Note: The downloaded ABox contains information only on `rdf:type` assertions. To compute the transitive closure according to the ontology (including subclass assertions), an external reasoner is needed. This step, while not strictly necessary, significantly speeds up querying the local triple store.
+
+### Step 2: Compute the Transitive Closure
+Use Jena RIOT to compute the closure:
+```bash
+$ riot --output=TTL <path_to_dbo_ontology.owl> > <path_to_output_inferred.ttl>
 ```
-$ riot --output=TTL <path to dbpedia.owl> > <path to output inferred.ttl>
+
+### Step 3: Create a Triple Store
+
+  1. Build the database:
+```bash
+$ tdb2.tdbloader --loc=<db_location> <path_to_inferred.ttl>
 ```
 
-Now, a triple store can be created. We will use fuseki.
-
-First, build the DB with
-
-```
-$ tdb2.tdbloader --loc=<db location> <path to inferred.ttl>
-```
-
-and then launch the triple store with
-
-```
+  2. Launch the triple store with Apache Jena Fuseki:
+```bash
 $ fuseki-server --port 8888 --loc=dbpediatdb /ds
 ```
+The SPARQL endpoint will be available at `http://localhost:8888/#/dataset/ds/query`.
 
-the sparql endpoint will be at http://localhost:8888/#/dataset/ds/query.
+## Running the Scripts
 
-## Compute the $L$ pairs
-Run 
-
+### Step 4: Compute the L Pairs
+Run the following command to compute the L pairs:
+```bash
+$ python disjointness_pairs.py -o <path_to_dbpedia_ontology> -s <sparql_endpoint> --output <output_csv_path>
 ```
-$ python disjointness_pairs.py -o <path to dbpedia ontology> -s <sparql endpoint> --output <output to csv path>
+For faster execution, ensure the ontology is in N-Triples format.
+
+### Step 5: Infer Disjointness Axioms
+Use the LLM to infer disjointness axioms:
+```bash
+$ python infer_disjointness_axioms.py -p <csv_path_of_disjointness_pairs> -o <path_to_dbpedia_ontology> --output <output_csv_path_for_disjoint_classes>
 ```
+Note: This process can be time-consuming. In our experiments, it took approximately 6 hours to find over 500k axioms.
 
-note that if the ontology in in N-triples format, it will be much faster.
-
-## Compute the disjointness axioms
-
-You can infer the disjointness axioms using the LLM with 
-
+### Step 6: Prune the Axioms
+Prune redundant axioms with:
+```bash
+$ python prune_disjointness_axioms.py -d <csv_path_for_disjoint_classes> -o <path_to_dbpedia_ontology> --output <output_ontology_ntriples_format>
 ```
-$ python infer_disjointness_axioms.py -p <csv path of disjointness pairs> -o <dbpedia ontology path> --output <output to csv path for disjoint classes>
-```
+In our experiments, we reduced the axioms to approximately 170k.
 
-this can take long. In the experiments we performed, it took roughly 6 hours to find more than 500k axioms.
-
-## Prune the axioms
-
-You can prune the redundant axioms with
-
-```
-$ python prune_disjointness_axioms.py -d <csv path for disjoint classes> -o <dbpedia ontology path> --output <output ontology in ntriples format>
-```
-
-in our experiments, we reduce the axioms to ~170k.
+## Conclusion
+Following these steps, you can efficiently infer and prune disjointness axioms in the DBPedia ontology, leveraging LLMs for ontology enhancement. For further details, refer to the methodology described in our paper.
+ 
+This README provides a comprehensive guide for setting up and executing the scripts required to infer and prune disjointness axioms in the DBPedia ontology. For additional information, please refer to our research paper.
